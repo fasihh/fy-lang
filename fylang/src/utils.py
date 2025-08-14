@@ -1,9 +1,14 @@
-from typing import Callable as CallableType, Any, Optional, Dict, Tuple, Iterable
+from typing import (
+    Callable as CallableType,
+    Any,
+    Optional,
+    Dict as DictType,
+)
 
 
 class Environment:
     def __init__(self, parent: Optional["Environment"] = None):
-        self.values: Dict[str, Any] = {}
+        self.values: DictType[str, Any] = {}
         self.parent = parent
 
     def define(self, name: str, value: Any):
@@ -85,40 +90,11 @@ class Reference:
         return str(self)
 
 
-class Array:
-    def __init__(self, array: Iterable):
-        self.array = array if type(array) == list else list(array)
-
-    def __getitem__(self, index: int):
-        return self.array[index]
-
-    def __setitem__(self, index: int, value: Any):
-        self.array[index] = value
-        return NoneLiteral()
-
-    def __len__(self):
-        return len(self.array)
-
-    def size(self):
-        return len(self)
-
-    def append(self, value: Any):
-        self.array.append(value)
-        return NoneLiteral()
-
-    def pop(self):
-        return self.array.pop()
-
-    def __str__(self):
-        return str(self.array)
-
-    def __repr__(self):
-        return str(self)
-
-
 class StructInstance:
     def __init__(
-        self, struct_value: "StructValue", instance_values: Dict[str, Any | NoneLiteral]
+        self,
+        struct_value: "StructValue",
+        instance_values: DictType[str, Any | NoneLiteral],
     ):
         self.struct = struct_value
         self.fields = instance_values
@@ -138,10 +114,13 @@ class StructInstance:
 
     def __str__(self):
         kv = lambda key, value: f"{key}={value}"
-        return f"{{ {', '.join(kv(key, value) for key, value in self.fields.items())} }}"
+        return (
+            f"{{ {', '.join(kv(key, value) for key, value in self.fields.items())} }}"
+        )
+
 
 class StructValue:
-    def __init__(self, name: str | None, fields: Dict[str, Any]):
+    def __init__(self, name: str | None, fields: DictType[str, Any]):
         self.name = name
         self.fields = fields
 
@@ -172,7 +151,9 @@ class StructValue:
             if isinstance(fval, Callable):
                 bound_env = Environment(fval.env)
                 bound_env.define("this", instance)
-                instance.fields[fname] = Callable(bound_env, fval.fn_callable, fval.arity)
+                instance.fields[fname] = Callable(
+                    bound_env, fval.fn_callable, fval.arity
+                )
 
         return instance
 
