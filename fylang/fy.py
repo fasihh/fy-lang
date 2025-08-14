@@ -1,10 +1,10 @@
 import argparse
 import os
 import sys
-from src.tokenizer import tokenize
-from src.parser import Parser
-from src.interpreter import Interpreter
-from version import __version__
+from .src.tokenizer import tokenize
+from .src.parser import Parser
+from .src.interpreter import Interpreter
+from .version import __version__
 
 
 def no_traceback_hook(exc_type, exc_value, _exc_traceback):
