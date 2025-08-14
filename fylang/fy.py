@@ -1,9 +1,17 @@
 import argparse
 import os
-from .src.tokenizer import tokenize
-from .src.parser import Parser
-from .src.interpreter import Interpreter
-from .version import __version__
+import sys
+from src.tokenizer import tokenize
+from src.parser import Parser
+from src.interpreter import Interpreter
+from version import __version__
+
+
+def no_traceback_hook(exc_type, exc_value, _exc_traceback):
+    print("", f"{exc_type.__name__}: {exc_value}\n", sep="\n")
+
+
+sys.excepthook = no_traceback_hook
 
 KEY = b"fylang"
 
@@ -61,8 +69,17 @@ def main():
         action="store_true",
         help="Compile to binary instead of interpreting",
     )
+    parser.add_argument(
+        "-t",
+        "--traceback",
+        action="store_true",
+        help="Enable full Python exception tracebacks",
+    )
 
     args = parser.parse_args()
+
+    if args.traceback:
+        sys.excepthook = sys.__excepthook__
 
     if args.file.endswith(".fy.b"):
         interpret_binary(args.file)
