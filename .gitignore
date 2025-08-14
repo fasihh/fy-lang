@@ -1,5 +1,10 @@
+.vscode
 venv
 dist
 build
 __pycache__
 *.egg-info
+.env
+.pypirc
+
+test

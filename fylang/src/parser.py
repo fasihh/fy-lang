@@ -2,7 +2,6 @@ from typing import List
 from .tokenizer import Token, TokenType
 from .utils import NoneLiteral
 from .ast import *
-from .types import *
 
 class Parser:
     def __init__(self, tokens: List[Token]):
@@ -37,7 +36,7 @@ class Parser:
         if not tok or (value and tok.value != value):
             raise SyntaxError(
                 (message or f"Expected {value or token_type.name}")
-                + f" at position {self.peek().position}"
+                + f": at position {self.peek().position}"
             )
         return tok
 
@@ -50,97 +49,7 @@ class Parser:
         return Block(exprs)
 
     def parse_expression(self):
-        return self.parse_decl()
-
-    def parse_decl(self):
-        if self.peek().type == TokenType.IDENTIFIER:
-            if self.next().type == TokenType.COLON:
-                name = self.advance()
-                self.advance()
-                type = self.parse_type()
-                initializer = None
-                if self.match(TokenType.EQUAL):
-                    initializer = self.parse_assignment()
-                return VariableDecl(name, type, initializer)
-            elif self.next().type == TokenType.COLON_EQUAL:
-                name = self.advance()
-                self.advance()
-                initializer = self.parse_assignment()
-                return AutoDeclAssign(name, initializer)
-
         return self.parse_return()
-
-    def parse_type(self):
-        if self.match(TokenType.LEFT_BRACE):
-            fields = {}
-            if self.peek().type != TokenType.RIGHT_BRACE:
-                while True:
-                    name = self.expect(
-                        TokenType.IDENTIFIER,
-                        message="Expected field name in struct type",
-                    )
-                    self.expect(
-                        TokenType.COLON, message="Expected ':' after struct field name"
-                    )
-
-                    field_type = self.parse_type()
-                    fields[name.value] = field_type
-
-                    if not self.match(TokenType.COMMA):
-                        break
-            self.expect(TokenType.RIGHT_BRACE)
-            return StructType(fields)
-
-        if self.match(TokenType.LEFT_PAREN):
-            varargs = None
-            inner_types = []
-            if self.peek().type != TokenType.RIGHT_PAREN:
-                while True:
-                    if self.match(TokenType.DOT_DOT_DOT):
-                        varargs = VarArgs(None, ArrayType(self.parse_type()))
-                        break
-                    else:
-                        inner_types.append(self.parse_type())
-                    if not self.match(TokenType.COMMA):
-                        break
-
-            self.expect(
-                TokenType.RIGHT_PAREN,
-                message=(
-                    f"Variable arguments type must be the only or the last parameter in the type"
-                    if varargs
-                    else None
-                ),
-            )
-
-            if self.match(TokenType.ARROW):
-                return_type = self.parse_type()
-                typ: BaseType = FunctionType(inner_types, return_type, varargs)
-            else:
-                if len(inner_types) != 1:
-                    raise SyntaxError(
-                        "Parenthesized type must contain a single type unless followed by '->' for function types"
-                    )
-                typ = inner_types[0]
-
-        else:
-            if self.match(
-                TokenType.STRING_KW,
-                TokenType.NUMBER_KW,
-                TokenType.BOOLEAN_KW,
-                TokenType.ANY_KW,
-                TokenType.NONE,
-                TokenType.IDENTIFIER,
-            ):
-                typ = Type(self.previous())
-            else:
-                raise SyntaxError(f"Unexpected token in type: {self.peek().type.name}")
-
-        while self.match(TokenType.LEFT_SQUARE):
-            self.expect(TokenType.RIGHT_SQUARE)
-            typ = ArrayType(typ)
-
-        return typ
 
     def parse_return(self):
         if self.match(TokenType.RETURN):
@@ -160,7 +69,6 @@ class Parser:
             TokenType.MINUS_EQUAL,
             TokenType.SLASH_EQUAL,
             TokenType.STAR_EQUAL,
-            TokenType.COLON_EQUAL,
         ):
             equals = self.previous()
             value = self.parse_assignment()
@@ -186,8 +94,23 @@ class Parser:
             if self.match(TokenType.ELSE):
                 else_branch = self.parse_expression()
             return If(condition, then_branch, else_branch)
+        
+        if self.match(TokenType.WHILE):
+            condition = self.parse_assignment()
+            body = self.parse_expression()
+            return For(None, condition, None, body)
 
         if self.match(TokenType.FOR):
+            if (
+                self.peek().type == TokenType.IDENTIFIER
+                and self.next().type == TokenType.COLON
+            ):
+                var_token = self.expect(TokenType.IDENTIFIER)
+                self.expect(TokenType.COLON)
+                iterable_expr = self.parse_expression()
+                body = self.parse_expression()
+                return ForIn(var_token, iterable_expr, body)
+
             initializer = condition = increment = None
             if self.peek().type != TokenType.LEFT_BRACE:
                 if self.peek().type != TokenType.SEMICOLON:
@@ -338,47 +261,23 @@ class Parser:
         self.expect(TokenType.RIGHT_PAREN)
 
         return Call(callee, args, kwargs)
+    
+    def parse_function_structure(self, name: Optional[Token], expect_message=""):
+            self.expect(TokenType.LEFT_PAREN, message=expect_message)
 
-    def parse_primary(self):
-        if self.match(TokenType.STRUCT):
-            self.expect(TokenType.LEFT_BRACE)
-
-            fields = []
-            while not self.match(TokenType.RIGHT_BRACE):
-                if (
-                    self.peek().type == TokenType.IDENTIFIER
-                    and self.next().type == TokenType.COLON
-                ):
-                    field_name = self.advance()
-                    self.advance()
-                    field_type = self.parse_type()
-                    initializer = None
-                    if self.match(TokenType.EQUAL):
-                        initializer = self.parse_assignment()
-                    fields.append(VariableDecl(field_name, field_type, initializer))
-                else:
-                    raise SyntaxError(
-                        f"Struct fields must be variable declarations at position {self.peek().position}"
-                    )
-
-                self.expect(TokenType.SEMICOLON)
-
-            return StructDef(fields)
-        if self.match(TokenType.FUNCTION):
-            self.expect(TokenType.LEFT_PAREN)
             varargs = None
-            params, types = [], []
+            params = []
             if self.peek().type != TokenType.RIGHT_PAREN:
                 while True:
-                    if self.match(TokenType.DOT_DOT_DOT):
-                        params.append(self.expect(TokenType.IDENTIFIER))
-                        self.expect(TokenType.COLON)
-                        varargs = VarArgs(params[-1], ArrayType(self.parse_type()))
+                    is_varargs = self.match(TokenType.DOT_DOT_DOT)
+                    param = self.expect(TokenType.IDENTIFIER)
+                    if is_varargs:
+                        varargs = VarArgs(param)
                         break
-                    else:
-                        params.append(self.expect(TokenType.IDENTIFIER))
-                        self.expect(TokenType.COLON)
-                        types.append(self.parse_type())
+                    initializer = None
+                    # if self.match(TokenType.EQUAL):
+                    #     initializer = self.parse_assignment()
+                    params.append((param, initializer))
                     if not self.match(TokenType.COMMA):
                         break
 
@@ -390,14 +289,40 @@ class Parser:
                     else None
                 ),
             )
-            return_type = None
-            if self.match(TokenType.COLON):
-                return_type = self.parse_type()
+
             self.expect(TokenType.ARROW)
 
             body = self.parse_assignment()
 
-            return Function(params, types, return_type, body, varargs)
+            return Function(name, params, body, varargs)
+
+    def parse_primary(self):
+        if self.match(TokenType.STRUCT):
+            name = None
+            if self.match(TokenType.IDENTIFIER):
+                name = self.previous()
+
+            self.expect(TokenType.LEFT_BRACE)
+
+            properties = []
+            while self.peek().type != TokenType.RIGHT_BRACE:
+                field_name = self.expect(TokenType.IDENTIFIER)
+                initializer = None
+                if self.match(TokenType.EQUAL):
+                    if self.peek().type == TokenType.FUNCTION:
+                        self.advance()
+                        initializer = self.parse_function_structure(None, "Functions inside 'struct' cannot be named")
+                    else:
+                        initializer = self.parse_if_while()
+                properties.append((field_name, initializer))
+                if not self.match(TokenType.COMMA):
+                    break
+            
+            self.expect(TokenType.RIGHT_BRACE)
+
+            return StructDef(name, properties)
+        if self.match(TokenType.FUNCTION):
+            return self.parse_function_structure(self.match(TokenType.IDENTIFIER))
         if self.match(
             TokenType.NUMBER, TokenType.STRING, TokenType.BOOLEAN, TokenType.NONE
         ):
@@ -434,12 +359,38 @@ class Parser:
             self.expect(TokenType.RIGHT_SQUARE)
             return ArrayLiteral(exprs)
         if self.match(TokenType.LEFT_PAREN):
-            expr = None
+            elements = []
+            is_tuple = False
+
             if self.peek().type != TokenType.RIGHT_PAREN:
-                expr = self.parse_expression()
+                elements.append(self.parse_expression())
+                if self.match(TokenType.COMMA):
+                    is_tuple = True
+                    while self.peek().type != TokenType.RIGHT_PAREN:
+                        elements.append(self.parse_expression())
+                        if not self.match(TokenType.COMMA):
+                            break
+
             self.expect(TokenType.RIGHT_PAREN)
-            return Grouping(expr)
+
+            if is_tuple or len(elements) > 1:
+                return TupleLiteral(elements)
+            else:
+                return Grouping(elements[0] if elements else None)
         if self.match(TokenType.LEFT_BRACE):
+            if self.peek().type == TokenType.STRING and self.next().type == TokenType.COLON:
+                pairs = []
+                while self.peek().type != TokenType.RIGHT_BRACE:
+                    key_token = self.expect(TokenType.STRING)
+                    self.expect(TokenType.COLON)
+                    value_expr = self.parse_expression()
+                    pairs.append((key_token, value_expr))
+                    if not self.match(TokenType.COMMA):
+                        break
+
+                self.expect(TokenType.RIGHT_BRACE)
+                return DictLiteral(pairs)
+
             exprs = []
             while self.peek().type != TokenType.RIGHT_BRACE:
                 exprs.append(self.parse_expression())

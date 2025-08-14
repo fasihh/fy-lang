@@ -48,12 +48,8 @@ class TokenType(Enum):
   STRING = auto()
   NUMBER = auto()
   BOOLEAN = auto()
-
-  STRING_KW = auto()
-  NUMBER_KW = auto()
-  BOOLEAN_KW = auto()
-  ANY_KW = auto()
   
+  WHILE = auto()
   AND = auto()
   STRUCT = auto()
   ELSE = auto()
@@ -64,8 +60,6 @@ class TokenType(Enum):
   NONE = auto()
   OR = auto()
   RETURN = auto()
-  SUPER = auto()
-  THIS = auto()
   TRUE = auto()
   XOR = auto()
   BREAK = auto()
@@ -80,6 +74,9 @@ class Token:
   value: Any
   position: int
 
+  def __hash__(self):
+    return hash(self.type.name)
+
 
 KEYWORDS = {
   "and": TokenType.AND,
@@ -92,16 +89,11 @@ KEYWORDS = {
   "none": TokenType.NONE,
   "or": TokenType.OR,
   "return": TokenType.RETURN,
-  "super": TokenType.SUPER,
-  "this": TokenType.THIS,
   "true": TokenType.TRUE,
   "xor": TokenType.XOR,
   "break": TokenType.BREAK,
   "continue": TokenType.CONTINUE,
-  "string": TokenType.STRING_KW,
-  "boolean": TokenType.BOOLEAN_KW,
-  "number": TokenType.NUMBER_KW,
-  "any": TokenType.ANY_KW,
+  "while": TokenType.WHILE,
 }
 
 
@@ -150,7 +142,7 @@ TOKEN_REGEX = re.compile(
   | (?P<LESS><)
 
 
-  | (?P<STRING>"(\\.|[^"])*")
+  | (?P<STRING>(?:"(\\.|[^"])*"|'(\\.|[^'])*'))
   | (?P<NUMBER>\b\d+(\.\d+)?\b)
   | (?P<BOOLEAN>true|false)
   | (?P<IDENTIFIER>\b[a-zA-Z_][a-zA-Z0-9_]*\b)

@@ -1,10 +1,14 @@
-from typing import Callable as CallableType, Any, Optional, Dict, Tuple, Iterable
-from .ast import BaseType
+from typing import (
+    Callable as CallableType,
+    Any,
+    Optional,
+    Dict as DictType,
+)
 
 
 class Environment:
     def __init__(self, parent: Optional["Environment"] = None):
-        self.values: Dict[str, Any] = {}
+        self.values: DictType[str, Any] = {}
         self.parent = parent
 
     def define(self, name: str, value: Any):
@@ -16,7 +20,7 @@ class Environment:
         elif self.parent:
             self.parent.assign(name, value)
         else:
-            raise RuntimeError(f"Undefined variable '{name}'")
+            self.define(name, value)
 
     def get(self, name: str) -> Any:
         if name in self.values:
@@ -29,16 +33,18 @@ class Environment:
 class Callable:
     def __init__(
         self,
+        env: Environment,
         fn_callable: CallableType,
         arity: int,
         get_label=lambda x: f"<fn: arity={x}>",
     ):
+        self.env = env
         self.arity = arity
         self.fn_callable = fn_callable
         self.get_label = get_label
 
     def __call__(self, *args):
-        return self.fn_callable(*args)
+        return self.fn_callable(self.env, *args)
 
     def __str__(self):
         return self.get_label(self.arity)
@@ -84,40 +90,11 @@ class Reference:
         return str(self)
 
 
-class Array:
-    def __init__(self, array: Iterable):
-        self.array = array if type(array) == list else list(array)
-
-    def __getitem__(self, index: int):
-        return self.array[index]
-
-    def __setitem__(self, index: int, value: Any):
-        self.array[index] = value
-        return NoneLiteral()
-
-    def __len__(self):
-        return len(self.array)
-
-    def size(self):
-        return len(self)
-
-    def append(self, value: Any):
-        self.array.append(value)
-        return NoneLiteral()
-
-    def pop(self):
-        return self.array.pop()
-
-    def __str__(self):
-        return str(self.array)
-
-    def __repr__(self):
-        return str(self)
-
-
 class StructInstance:
     def __init__(
-        self, struct_value: "StructValue", instance_values: Dict[str, Any | NoneLiteral]
+        self,
+        struct_value: "StructValue",
+        instance_values: DictType[str, Any | NoneLiteral],
     ):
         self.struct = struct_value
         self.fields = instance_values
@@ -136,11 +113,15 @@ class StructInstance:
             raise RuntimeError(f"Cannot add new field '{name}' to struct")
 
     def __str__(self):
-        kv = lambda key, value: f"{key} = {value}"
-        return f"{{ {', '.join(kv(key, value) for key, value in self.fields.items())} }}"
+        kv = lambda key, value: f"{key}={value}"
+        return (
+            f"{{ {', '.join(kv(key, value) for key, value in self.fields.items())} }}"
+        )
+
 
 class StructValue:
-    def __init__(self, fields: Dict[str, Tuple[BaseType, Any | None]]):
+    def __init__(self, name: str | None, fields: DictType[str, Any]):
+        self.name = name
         self.fields = fields
 
     def __call__(self, *args, **kwargs):
@@ -160,27 +141,21 @@ class StructValue:
                 raise RuntimeError(f"Field '{name}' already set by positional arg")
             instance_values[name] = value
 
-        for key, (_, default) in self.fields.items():
+        for key, value in self.fields.items():
             if key not in instance_values:
-                instance_values[key] = default if default is not None else NoneLiteral()
+                instance_values[key] = value
 
-        return StructInstance(self, instance_values)
+        instance = StructInstance(self, instance_values)
+
+        for fname, fval in self.fields.items():
+            if isinstance(fval, Callable):
+                bound_env = Environment(fval.env)
+                bound_env.define("this", instance)
+                instance.fields[fname] = Callable(
+                    bound_env, fval.fn_callable, fval.arity
+                )
+
+        return instance
 
     def __str__(self):
         return f"<struct: {{ {', '.join(self.fields.keys())} }}>"
-
-
-class TypeEnv:
-    def __init__(self, parent: Optional["TypeEnv"] = None):
-        self.parent = parent
-        self.vars = {}
-
-    def define(self, name: str, type_: BaseType):
-        self.vars[name] = type_
-
-    def lookup(self, name: str):
-        if name in self.vars:
-            return self.vars[name]
-        if self.parent:
-            return self.parent.lookup(name)
-        return None

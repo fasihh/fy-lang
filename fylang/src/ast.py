@@ -1,8 +1,13 @@
 # pyright: ignore[reportShadowedImports]
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Tuple
 from dataclasses import dataclass
-from .types import BaseType, VarArgs
 from .tokenizer import Token
+
+
+@dataclass
+class VarArgs:
+    name: Optional[Token]
+
 
 @dataclass
 class Expr:
@@ -25,6 +30,13 @@ class For(Expr):
 
 
 @dataclass
+class ForIn(Expr):
+    var: Token
+    iterable: Expr
+    body: Expr
+
+
+@dataclass
 class Block(Expr):
     expressions: List[Expr]
 
@@ -39,20 +51,6 @@ class Binary(Expr):
 @dataclass
 class Variable(Expr):
     name: Token
-    type: Optional[BaseType] = None
-
-
-@dataclass
-class VariableDecl(Expr):
-    name: Token
-    type: BaseType
-    initializer: Expr
-
-
-@dataclass
-class AutoDeclAssign(Expr):
-    name: Token
-    initializer: Expr
 
 
 @dataclass
@@ -62,6 +60,16 @@ class Literal(Expr):
 
 @dataclass
 class ArrayLiteral(Expr):
+    values: List[Expr]
+
+
+@dataclass
+class DictLiteral(Expr):
+    values: List[Tuple[Token, Expr]]
+
+
+@dataclass
+class TupleLiteral(Expr):
     values: List[Expr]
 
 
@@ -92,9 +100,8 @@ class Unary(Expr):
 
 @dataclass
 class Function(Expr):
-    params: List[Token]
-    param_types: List[BaseType]
-    return_type: BaseType
+    name: Optional[Token]
+    params: List[Tuple[Token, Expr]]
     body: Expr
     vararg: Optional[VarArgs]
 
@@ -124,4 +131,5 @@ class Grouping(Expr):
 
 @dataclass
 class StructDef(Expr):
-    fields: List[VariableDecl]
+    name: Optional[Token]
+    properties: List[Tuple[Token, Expr]]
