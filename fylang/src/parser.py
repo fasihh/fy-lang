@@ -36,7 +36,7 @@ class Parser:
         if not tok or (value and tok.value != value):
             raise SyntaxError(
                 (message or f"Expected {value or token_type.name}")
-                + f" at position {self.peek().position}"
+                + f": at position {self.peek().position}"
             )
         return tok
 
@@ -94,8 +94,23 @@ class Parser:
             if self.match(TokenType.ELSE):
                 else_branch = self.parse_expression()
             return If(condition, then_branch, else_branch)
+        
+        if self.match(TokenType.WHILE):
+            condition = self.parse_assignment()
+            body = self.parse_expression()
+            return For(None, condition, None, body)
 
         if self.match(TokenType.FOR):
+            if (
+                self.peek().type == TokenType.IDENTIFIER
+                and self.next().type == TokenType.COLON
+            ):
+                var_token = self.expect(TokenType.IDENTIFIER)
+                self.expect(TokenType.COLON)
+                iterable_expr = self.parse_expression()
+                body = self.parse_expression()
+                return ForIn(var_token, iterable_expr, body)
+
             initializer = condition = increment = None
             if self.peek().type != TokenType.LEFT_BRACE:
                 if self.peek().type != TokenType.SEMICOLON:
@@ -254,12 +269,15 @@ class Parser:
             params = []
             if self.peek().type != TokenType.RIGHT_PAREN:
                 while True:
-                    if self.match(TokenType.DOT_DOT_DOT):
-                        params.append(self.expect(TokenType.IDENTIFIER))
-                        varargs = VarArgs(params[-1])
+                    is_varargs = self.match(TokenType.DOT_DOT_DOT)
+                    param = self.expect(TokenType.IDENTIFIER)
+                    if is_varargs:
+                        varargs = VarArgs(param)
                         break
-                    else:
-                        params.append(self.expect(TokenType.IDENTIFIER))
+                    initializer = None
+                    # if self.match(TokenType.EQUAL):
+                    #     initializer = self.parse_assignment()
+                    params.append((param, initializer))
                     if not self.match(TokenType.COMMA):
                         break
 
@@ -341,7 +359,9 @@ class Parser:
             self.expect(TokenType.RIGHT_SQUARE)
             return ArrayLiteral(exprs)
         if self.match(TokenType.LEFT_PAREN):
-            expr = None
+            elements = []
+            is_tuple = False
+
             if self.peek().type != TokenType.RIGHT_PAREN:
                 elements.append(self.parse_expression())
                 if self.match(TokenType.COMMA):

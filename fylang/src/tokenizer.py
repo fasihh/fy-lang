@@ -49,6 +49,7 @@ class TokenType(Enum):
   NUMBER = auto()
   BOOLEAN = auto()
   
+  WHILE = auto()
   AND = auto()
   STRUCT = auto()
   ELSE = auto()
@@ -73,6 +74,9 @@ class Token:
   value: Any
   position: int
 
+  def __hash__(self):
+    return hash(self.type.name)
+
 
 KEYWORDS = {
   "and": TokenType.AND,
@@ -89,6 +93,7 @@ KEYWORDS = {
   "xor": TokenType.XOR,
   "break": TokenType.BREAK,
   "continue": TokenType.CONTINUE,
+  "while": TokenType.WHILE,
 }
 
 

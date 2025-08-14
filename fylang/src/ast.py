@@ -30,6 +30,13 @@ class For(Expr):
 
 
 @dataclass
+class ForIn(Expr):
+    var: Token
+    iterable: Expr
+    body: Expr
+
+
+@dataclass
 class Block(Expr):
     expressions: List[Expr]
 
