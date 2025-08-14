@@ -343,10 +343,34 @@ class Parser:
         if self.match(TokenType.LEFT_PAREN):
             expr = None
             if self.peek().type != TokenType.RIGHT_PAREN:
-                expr = self.parse_expression()
+                elements.append(self.parse_expression())
+                if self.match(TokenType.COMMA):
+                    is_tuple = True
+                    while self.peek().type != TokenType.RIGHT_PAREN:
+                        elements.append(self.parse_expression())
+                        if not self.match(TokenType.COMMA):
+                            break
+
             self.expect(TokenType.RIGHT_PAREN)
-            return Grouping(expr)
+
+            if is_tuple or len(elements) > 1:
+                return TupleLiteral(elements)
+            else:
+                return Grouping(elements[0] if elements else None)
         if self.match(TokenType.LEFT_BRACE):
+            if self.peek().type == TokenType.STRING and self.next().type == TokenType.COLON:
+                pairs = []
+                while self.peek().type != TokenType.RIGHT_BRACE:
+                    key_token = self.expect(TokenType.STRING)
+                    self.expect(TokenType.COLON)
+                    value_expr = self.parse_expression()
+                    pairs.append((key_token, value_expr))
+                    if not self.match(TokenType.COMMA):
+                        break
+
+                self.expect(TokenType.RIGHT_BRACE)
+                return DictLiteral(pairs)
+
             exprs = []
             while self.peek().type != TokenType.RIGHT_BRACE:
                 exprs.append(self.parse_expression())

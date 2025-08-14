@@ -57,6 +57,16 @@ class ArrayLiteral(Expr):
 
 
 @dataclass
+class DictLiteral(Expr):
+    values: List[Tuple[Token, Expr]]
+
+
+@dataclass
+class TupleLiteral(Expr):
+    values: List[Expr]
+
+
+@dataclass
 class IndexAccess(Expr):
     collection: Expr
     index: Expr
@@ -84,7 +94,7 @@ class Unary(Expr):
 @dataclass
 class Function(Expr):
     name: Optional[Token]
-    params: List[Token]
+    params: List[Tuple[Token, Expr]]
     body: Expr
     vararg: Optional[VarArgs]
 
