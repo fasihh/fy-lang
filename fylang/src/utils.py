@@ -28,16 +28,18 @@ class Environment:
 class Callable:
     def __init__(
         self,
+        env: Environment,
         fn_callable: CallableType,
         arity: int,
         get_label=lambda x: f"<fn: arity={x}>",
     ):
+        self.env = env
         self.arity = arity
         self.fn_callable = fn_callable
         self.get_label = get_label
 
     def __call__(self, *args):
-        return self.fn_callable(*args)
+        return self.fn_callable(self.env, *args)
 
     def __str__(self):
         return self.get_label(self.arity)
@@ -135,11 +137,12 @@ class StructInstance:
             raise RuntimeError(f"Cannot add new field '{name}' to struct")
 
     def __str__(self):
-        kv = lambda key, value: f"{key} = {value}"
+        kv = lambda key, value: f"{key}={value}"
         return f"{{ {', '.join(kv(key, value) for key, value in self.fields.items())} }}"
 
 class StructValue:
-    def __init__(self, fields: Dict[str, Tuple[BaseType, Any | None]]):
+    def __init__(self, name: str | None, fields: Dict[str, Any]):
+        self.name = name
         self.fields = fields
 
     def __call__(self, *args, **kwargs):
@@ -159,11 +162,19 @@ class StructValue:
                 raise RuntimeError(f"Field '{name}' already set by positional arg")
             instance_values[name] = value
 
-        for key, (_, default) in self.fields.items():
+        for key, value in self.fields.items():
             if key not in instance_values:
-                instance_values[key] = default if default is not None else NoneLiteral()
+                instance_values[key] = value
 
-        return StructInstance(self, instance_values)
+        instance = StructInstance(self, instance_values)
+
+        for fname, fval in self.fields.items():
+            if isinstance(fval, Callable):
+                bound_env = Environment(fval.env)
+                bound_env.define("this", instance)
+                instance.fields[fname] = Callable(bound_env, fval.fn_callable, fval.arity)
+
+        return instance
 
     def __str__(self):
         return f"<struct: {{ {', '.join(self.fields.keys())} }}>"

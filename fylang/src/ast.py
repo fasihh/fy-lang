@@ -3,6 +3,12 @@ from typing import Optional, List, Dict, Tuple
 from dataclasses import dataclass
 from .tokenizer import Token
 
+
+@dataclass
+class VarArgs:
+    name: Optional[Token]
+
+
 @dataclass
 class Expr:
     pass
@@ -77,6 +83,7 @@ class Unary(Expr):
 
 @dataclass
 class Function(Expr):
+    name: Optional[Token]
     params: List[Token]
     body: Expr
     vararg: Optional[VarArgs]

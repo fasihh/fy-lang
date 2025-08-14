@@ -246,47 +246,20 @@ class Parser:
         self.expect(TokenType.RIGHT_PAREN)
 
         return Call(callee, args, kwargs)
+    
+    def parse_function_structure(self, name: Optional[Token], expect_message=""):
+            self.expect(TokenType.LEFT_PAREN, message=expect_message)
 
-    def parse_primary(self):
-        if self.match(TokenType.STRUCT):
-            self.expect(TokenType.LEFT_BRACE)
-
-            fields = []
-            while not self.match(TokenType.RIGHT_BRACE):
-                if (
-                    self.peek().type == TokenType.IDENTIFIER
-                    and self.next().type == TokenType.COLON
-                ):
-                    field_name = self.advance()
-                    self.advance()
-                    field_type = self.parse_type()
-                    initializer = None
-                    if self.match(TokenType.EQUAL):
-                        initializer = self.parse_assignment()
-                    fields.append(VariableDecl(field_name, field_type, initializer))
-                else:
-                    raise SyntaxError(
-                        f"Struct fields must be variable declarations at position {self.peek().position}"
-                    )
-
-                self.expect(TokenType.SEMICOLON)
-
-            return StructDef(fields)
-        if self.match(TokenType.FUNCTION):
-            self.expect(TokenType.LEFT_PAREN)
             varargs = None
-            params, types = [], []
+            params = []
             if self.peek().type != TokenType.RIGHT_PAREN:
                 while True:
                     if self.match(TokenType.DOT_DOT_DOT):
                         params.append(self.expect(TokenType.IDENTIFIER))
-                        self.expect(TokenType.COLON)
-                        varargs = VarArgs(params[-1], ArrayType(self.parse_type()))
+                        varargs = VarArgs(params[-1])
                         break
                     else:
                         params.append(self.expect(TokenType.IDENTIFIER))
-                        self.expect(TokenType.COLON)
-                        types.append(self.parse_type())
                     if not self.match(TokenType.COMMA):
                         break
 
@@ -298,14 +271,40 @@ class Parser:
                     else None
                 ),
             )
-            return_type = None
-            if self.match(TokenType.COLON):
-                return_type = self.parse_type()
+
             self.expect(TokenType.ARROW)
 
             body = self.parse_assignment()
 
-            return Function(params, types, return_type, body, varargs)
+            return Function(name, params, body, varargs)
+
+    def parse_primary(self):
+        if self.match(TokenType.STRUCT):
+            name = None
+            if self.match(TokenType.IDENTIFIER):
+                name = self.previous()
+
+            self.expect(TokenType.LEFT_BRACE)
+
+            properties = []
+            while self.peek().type != TokenType.RIGHT_BRACE:
+                field_name = self.expect(TokenType.IDENTIFIER)
+                initializer = None
+                if self.match(TokenType.EQUAL):
+                    if self.peek().type == TokenType.FUNCTION:
+                        self.advance()
+                        initializer = self.parse_function_structure(None, "Functions inside 'struct' cannot be named")
+                    else:
+                        initializer = self.parse_if_while()
+                properties.append((field_name, initializer))
+                if not self.match(TokenType.COMMA):
+                    break
+            
+            self.expect(TokenType.RIGHT_BRACE)
+
+            return StructDef(name, properties)
+        if self.match(TokenType.FUNCTION):
+            return self.parse_function_structure(self.match(TokenType.IDENTIFIER))
         if self.match(
             TokenType.NUMBER, TokenType.STRING, TokenType.BOOLEAN, TokenType.NONE
         ):
