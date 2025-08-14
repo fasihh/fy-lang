@@ -2,7 +2,6 @@ from typing import List
 from .tokenizer import Token, TokenType
 from .utils import NoneLiteral
 from .ast import *
-from .types import *
 
 class Parser:
     def __init__(self, tokens: List[Token]):
@@ -50,97 +49,7 @@ class Parser:
         return Block(exprs)
 
     def parse_expression(self):
-        return self.parse_decl()
-
-    def parse_decl(self):
-        if self.peek().type == TokenType.IDENTIFIER:
-            if self.next().type == TokenType.COLON:
-                name = self.advance()
-                self.advance()
-                type = self.parse_type()
-                initializer = None
-                if self.match(TokenType.EQUAL):
-                    initializer = self.parse_assignment()
-                return VariableDecl(name, type, initializer)
-            elif self.next().type == TokenType.COLON_EQUAL:
-                name = self.advance()
-                self.advance()
-                initializer = self.parse_assignment()
-                return AutoDeclAssign(name, initializer)
-
         return self.parse_return()
-
-    def parse_type(self):
-        if self.match(TokenType.LEFT_BRACE):
-            fields = {}
-            if self.peek().type != TokenType.RIGHT_BRACE:
-                while True:
-                    name = self.expect(
-                        TokenType.IDENTIFIER,
-                        message="Expected field name in struct type",
-                    )
-                    self.expect(
-                        TokenType.COLON, message="Expected ':' after struct field name"
-                    )
-
-                    field_type = self.parse_type()
-                    fields[name.value] = field_type
-
-                    if not self.match(TokenType.COMMA):
-                        break
-            self.expect(TokenType.RIGHT_BRACE)
-            return StructType(fields)
-
-        if self.match(TokenType.LEFT_PAREN):
-            varargs = None
-            inner_types = []
-            if self.peek().type != TokenType.RIGHT_PAREN:
-                while True:
-                    if self.match(TokenType.DOT_DOT_DOT):
-                        varargs = VarArgs(None, ArrayType(self.parse_type()))
-                        break
-                    else:
-                        inner_types.append(self.parse_type())
-                    if not self.match(TokenType.COMMA):
-                        break
-
-            self.expect(
-                TokenType.RIGHT_PAREN,
-                message=(
-                    f"Variable arguments type must be the only or the last parameter in the type"
-                    if varargs
-                    else None
-                ),
-            )
-
-            if self.match(TokenType.ARROW):
-                return_type = self.parse_type()
-                typ: BaseType = FunctionType(inner_types, return_type, varargs)
-            else:
-                if len(inner_types) != 1:
-                    raise SyntaxError(
-                        "Parenthesized type must contain a single type unless followed by '->' for function types"
-                    )
-                typ = inner_types[0]
-
-        else:
-            if self.match(
-                TokenType.STRING_KW,
-                TokenType.NUMBER_KW,
-                TokenType.BOOLEAN_KW,
-                TokenType.ANY_KW,
-                TokenType.NONE,
-                TokenType.IDENTIFIER,
-            ):
-                typ = Type(self.previous())
-            else:
-                raise SyntaxError(f"Unexpected token in type: {self.peek().type.name}")
-
-        while self.match(TokenType.LEFT_SQUARE):
-            self.expect(TokenType.RIGHT_SQUARE)
-            typ = ArrayType(typ)
-
-        return typ
 
     def parse_return(self):
         if self.match(TokenType.RETURN):
@@ -160,7 +69,6 @@ class Parser:
             TokenType.MINUS_EQUAL,
             TokenType.SLASH_EQUAL,
             TokenType.STAR_EQUAL,
-            TokenType.COLON_EQUAL,
         ):
             equals = self.previous()
             value = self.parse_assignment()

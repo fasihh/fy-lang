@@ -2,7 +2,7 @@ from typing import Any, List
 from .ast import *
 from .utils import *
 from .tokenizer import TokenType
-from .types import FunctionType
+from importlib import import_module
 
 class Interpreter:
     def __init__(self):
@@ -11,8 +11,7 @@ class Interpreter:
             print(*x)
             return str(NoneLiteral())
         self.globals.define('print', print_wrapper)
-        self.globals.define('to_number', lambda x: x)
-        self.globals.define('to_any', lambda x: x)
+        self.globals.define('import', import_module)
 
         def type_fn(x: Any) -> str:
             x = self.unwrap(x)
@@ -86,26 +85,11 @@ class Interpreter:
                 return NoneLiteral()
 
             return Reference(getter, setter)
-
         else:
             raise RuntimeError("Invalid assignment target")
 
     def visit_literal(self, expr: Literal):
         return expr.value.value
-    
-    def visit_variabledecl(self, expr: VariableDecl):
-        name = expr.name
-        initializer = None
-        if expr.initializer:
-            initializer = self.evaluate(expr.initializer)
-        self.env.define(name.value, initializer)
-        return NoneLiteral()
-    
-    def visit_autodeclassign(self, expr: AutoDeclAssign):
-        name = expr.name
-        initializer = self.evaluate(expr.initializer)
-        self.env.define(name.value, initializer)
-        return initializer
 
     def visit_variable(self, expr: Variable):
         return self.resolve_reference(expr)

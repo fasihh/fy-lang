@@ -1,5 +1,4 @@
 from typing import Callable as CallableType, Any, Optional, Dict, Tuple, Iterable
-from .ast import BaseType
 
 
 class Environment:
@@ -16,7 +15,7 @@ class Environment:
         elif self.parent:
             self.parent.assign(name, value)
         else:
-            raise RuntimeError(f"Undefined variable '{name}'")
+            self.define(name, value)
 
     def get(self, name: str) -> Any:
         if name in self.values:
@@ -168,19 +167,3 @@ class StructValue:
 
     def __str__(self):
         return f"<struct: {{ {', '.join(self.fields.keys())} }}>"
-
-
-class TypeEnv:
-    def __init__(self, parent: Optional["TypeEnv"] = None):
-        self.parent = parent
-        self.vars = {}
-
-    def define(self, name: str, type_: BaseType):
-        self.vars[name] = type_
-
-    def lookup(self, name: str):
-        if name in self.vars:
-            return self.vars[name]
-        if self.parent:
-            return self.parent.lookup(name)
-        return None
